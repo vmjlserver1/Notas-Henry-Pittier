@@ -67,6 +67,9 @@ async function cargarSeccion(seccion) {
     console.error('Error cargando sección:', error);
     contentArea.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
   }
+
+  // Exponer función global para integraciones y tests
+  window.cargarSeccion = cargarSeccion;
 }
 
 // ============================================================================
@@ -564,7 +567,3 @@ function irAPerfil() {
   window.location.href = '/pages/perfil.html';
 }
 
-const nav = {
-  logout: logout,
-  irAPerfil: irAPerfil,
-};

@@ -16,11 +16,12 @@ const sessionAPI = {
    */
   guardarSesion: (user, rolData = {}) => {
     const sessionData = {
-      user_id: user.id,
-      email: user.email,
-      nombre: user.user_metadata?.nombre || '',
-      apellido: user.user_metadata?.apellido || '',
-      cedula: user.user_metadata?.cedula || '',
+      user,
+      user_id: user.id || user.user_id || user.userId || null,
+      email: user.email || user.user_metadata?.email || '',
+      nombre: user.user_metadata?.nombre || user.user_metadata?.nombres || user.nombres || user.nombre || '',
+      apellido: user.user_metadata?.apellido || user.user_metadata?.apellidos || user.apellidos || user.apellido || '',
+      cedula: user.user_metadata?.cedula || user.user_metadata?.ci || user.cedula || user.ci || '',
       rol_principal: rolData.rol_principal || null,
       role_id: rolData.role_id || null,
       todos_roles: rolData.todos_roles || [],
@@ -28,9 +29,9 @@ const sessionAPI = {
     };
 
     sessionStorage.setItem(SESSION_KEYS.USER_SESSION, JSON.stringify(sessionData));
-    localStorage.setItem(SESSION_KEYS.USER_EMAIL, user.email);
-    if (rolData.rol_principal) {
-      localStorage.setItem(SESSION_KEYS.USER_ROLE, rolData.rol_principal);
+    localStorage.setItem(SESSION_KEYS.USER_EMAIL, sessionData.email);
+    if (sessionData.rol_principal) {
+      localStorage.setItem(SESSION_KEYS.USER_ROLE, sessionData.rol_principal);
     } else {
       localStorage.removeItem(SESSION_KEYS.USER_ROLE);
     }
@@ -95,7 +96,8 @@ const sessionAPI = {
   obtenerInfo: (campo) => {
     const sesion = sessionAPI.obtenerSesion();
     if (!sesion) return null;
-    return campo ? sesion[campo] : sesion;
+    if (!campo) return sesion;
+    return sesion[campo] ?? sesion.user?.[campo] ?? null;
   },
 };
 
@@ -176,5 +178,6 @@ const nav = {
   },
 };
 
-window.sessionAPI = sessionAPI;
-window.nav = nav;
+// Preserve any existing global objects (avoid redeclaration collisions)
+window.sessionAPI = window.sessionAPI || sessionAPI;
+window.nav = window.nav || nav;

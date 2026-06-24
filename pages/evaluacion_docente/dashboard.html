@@ -384,28 +384,242 @@
           <h2><i class="bi bi-file-earmark-chart"></i> Reportes</h2>
         </div>
 
-        <div class="alert alert-info">
-          <i class="bi bi-info-circle"></i> Módulo de reportes de evaluación docente y calificaciones.
-        </div>
+        <div class="card mb-4">
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label">Sección</label>
+                <select class="form-select" id="selectSeccionReporte">
+                  <option value="">-- Selecciona sección --</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Año Escolar</label>
+                <select class="form-select" id="selectAnioReporte">
+                  <option value="">-- Selecciona año --</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Estudiante (ID)</label>
+                <input type="text" id="inputEstudianteReporte" class="form-control" placeholder="ID estudiante">
+              </div>
+            </div>
 
-        <div class="row">
-          <div class="col-md-6">
-            <div class="card">
-              <div class="card-body">
-                <h5><i class="bi bi-graph-up"></i> Reporte de Notas por Sección</h5>
-                <p class="text-muted">Descarga un reporte consolidado de todas las notas</p>
-                <button class="btn btn-sm btn-outline-primary">Generar</button>
+            <div class="row g-3 mt-3">
+              <div class="col-md-4">
+                <button id="btnGenerarSabana" class="btn btn-primary w-100" onclick="generarReporteSabana()">
+                  Generar Sabana
+                </button>
+              </div>
+              <div class="col-md-4">
+                <button id="btnGenerarActa" class="btn btn-secondary w-100" onclick="generarActaFinal()">
+                  Generar Acta Final
+                </button>
+              </div>
+              <div class="col-md-4">
+                <button id="btnGenerarBoletin" class="btn btn-outline-primary w-100" onclick="generarBoletinEstudiante()">
+                  Generar Boletín
+                </button>
               </div>
             </div>
           </div>
-          <div class="col-md-6">
-            <div class="card">
-              <div class="card-body">
-                <h5><i class="bi bi-file-earmark-pdf"></i> Reporte de Evaluaciones</h5>
-                <p class="text-muted">Descarga reporte de métodos de evaluación utiliza</p>
-                <button class="btn btn-sm btn-outline-primary">Generar</button>
-              </div>
-            </div>
+        </div>
+
+        <div id="reporteResultados"></div>
+      `;
+
+      try {
+        const secciones = await API.secciones.listar({ activo: true });
+        const anios = await API.periodos.listarAnios();
+        const selectSeccion = document.getElementById('selectSeccionReporte');
+        const selectAnio = document.getElementById('selectAnioReporte');
+
+        if (Array.isArray(secciones)) {
+          secciones.forEach((s) => {
+            const id = s.id_seccion || s.id || s.id_seccion;
+            const nombre = s.nombre || `${s.grado || ''} ${s.letra || ''}`.trim() || `Sección ${id}`;
+            selectSeccion.insertAdjacentHTML('beforeend', `<option value="${id}">${nombre}</option>`);
+          });
+        }
+
+        if (Array.isArray(anios)) {
+          anios.forEach((anio) => {
+            const id = anio.id_anio || anio.id || anio.anio_escolar_id;
+            const nombre = anio.nombre || anio.nombre_anio || `Año ${id}`;
+            selectAnio.insertAdjacentHTML('beforeend', `<option value="${id}">${nombre}</option>`);
+          });
+        }
+      } catch (error) {
+        console.error('Error al cargar opciones de reportes:', error);
+        document.getElementById('reporteResultados').innerHTML = `<div class="alert alert-danger">Error cargando datos de reportes: ${error.message}</div>`;
+      }
+    }
+
+    async function generarReporteSabana() {
+      const seccionId = document.getElementById('selectSeccionReporte').value;
+      const resultado = document.getElementById('reporteResultados');
+      if (!seccionId) {
+        resultado.innerHTML = `<div class="alert alert-warning">Selecciona primero una sección para generar la sabana.</div>`;
+        return;
+      }
+
+      resultado.innerHTML = `<div class="alert alert-info">Generando sabana...</div>`;
+      try {
+        const datos = await API.reportes.generarDatosSabana(seccionId);
+        if (!Array.isArray(datos)) {
+          throw new Error('La respuesta del servidor no es un arreglo válido');
+        }
+        resultado.innerHTML = mostrarTablaSabana(datos);
+      } catch (error) {
+        console.error('Error generando sabana:', error);
+        resultado.innerHTML = `<div class="alert alert-danger">Error generando sabana: ${error.message}</div>`;
+      }
+    }
+
+    async function generarActaFinal() {
+      const seccionId = document.getElementById('selectSeccionReporte').value;
+      const anioId = document.getElementById('selectAnioReporte').value;
+      const resultado = document.getElementById('reporteResultados');
+
+      if (!seccionId || !anioId) {
+        resultado.innerHTML = `<div class="alert alert-warning">Selecciona sección y año escolar para generar el acta final.</div>`;
+        return;
+      }
+
+      resultado.innerHTML = `<div class="alert alert-info">Generando acta final...</div>`;
+      try {
+        const data = await API.reportes.generarActaFinal(seccionId, anioId);
+        if (!data || !Array.isArray(data.registros)) {
+          throw new Error('La respuesta del servidor no contiene registros válidos');
+        }
+        resultado.innerHTML = crearTablaActaFinal(data.registros);
+      } catch (error) {
+        console.error('Error generando acta final:', error);
+        resultado.innerHTML = `<div class="alert alert-danger">Error generando acta final: ${error.message}</div>`;
+      }
+    }
+
+    async function generarBoletinEstudiante() {
+      const estudianteId = document.getElementById('inputEstudianteReporte').value.trim();
+      const anioId = document.getElementById('selectAnioReporte').value;
+      const resultado = document.getElementById('reporteResultados');
+
+      if (!estudianteId || !anioId) {
+        resultado.innerHTML = `<div class="alert alert-warning">Indica ID de estudiante y año escolar para generar el boletín.</div>`;
+        return;
+      }
+
+      resultado.innerHTML = `<div class="alert alert-info">Generando boletín...</div>`;
+      try {
+        const data = await API.reportes.generarBoletinEstudiante(estudianteId, anioId);
+        resultado.innerHTML = crearPanelBoletin(data);
+      } catch (error) {
+        console.error('Error generando boletín:', error);
+        resultado.innerHTML = `<div class="alert alert-danger">Error generando boletín: ${error.message}</div>`;
+      }
+    }
+
+    function mostrarTablaSabana(datos) {
+      if (!Array.isArray(datos) || datos.length === 0) {
+        return `<div class="alert alert-secondary">No se encontraron datos de sabana para esta sección.</div>`;
+      }
+
+      const columnas = Object.keys(datos[0]);
+      const headers = columnas.map(col => `<th>${col}</th>`).join('');
+      const rows = datos.map(item => {
+        return `<tr>${columnas.map(col => `<td>${typeof item[col] === 'object' ? JSON.stringify(item[col]) : item[col] || ''}</td>`).join('')}</tr>`;
+      }).join('');
+
+      return `
+        <div class="card">
+          <div class="card-header bg-dark text-white">Sabana de Calificaciones</div>
+          <div class="table-responsive">
+            <table class="table table-sm table-striped mb-0">
+              <thead><tr>${headers}</tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function crearTablaActaFinal(registros) {
+      if (!Array.isArray(registros) || registros.length === 0) {
+        return `<div class="alert alert-secondary">No se encontraron registros para el acta final.</div>`;
+      }
+
+      const rows = registros.map((reg) => {
+        const materias = Array.isArray(reg.materias)
+          ? reg.materias.map(m => `${m.nombre}: ${m.definitiva} (${m.resultado})`).join('<br>')
+          : '';
+
+        return `
+          <tr>
+            <td>${reg.estudiante}</td>
+            <td>${reg.cedula}</td>
+            <td>${materias}</td>
+          </tr>
+        `;
+      }).join('');
+
+      return `
+        <div class="card">
+          <div class="card-header bg-dark text-white">Acta Final</div>
+          <div class="table-responsive">
+            <table class="table table-sm table-striped mb-0">
+              <thead>
+                <tr>
+                  <th>Estudiante</th>
+                  <th>Cédula</th>
+                  <th>Materias</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function crearPanelBoletin(data) {
+      if (!data || !data.estudiante) {
+        return `<div class="alert alert-secondary">No se pudo generar el boletín. Verifica los datos ingresados.</div>`;
+      }
+
+      const calificaciones = data.calificaciones || {};
+      const filas = Object.keys(calificaciones).map((materia) => {
+        const valores = calificaciones[materia];
+        return `
+          <tr>
+            <td>${materia}</td>
+            <td>${valores.l1 || '-'}</td>
+            <td>${valores.l2 || '-'}</td>
+            <td>${valores.l3 || '-'}</td>
+          </tr>
+        `;
+      }).join('');
+
+      return `
+        <div class="card">
+          <div class="card-header bg-dark text-white">Boletín de ${data.estudiante}</div>
+          <div class="card-body">
+            <p><strong>Cédula:</strong> ${data.cedula || '-'}</p>
+            <p><strong>Curso:</strong> ${data.curso || '-'}</p>
+            <p><strong>Período:</strong> ${data.periodo || '-'}</p>
+            <p><strong>Promedio general:</strong> ${data.promedio_general || '-'}</p>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm table-striped mb-0">
+              <thead>
+                <tr>
+                  <th>Materia</th>
+                  <th>Lapso 1</th>
+                  <th>Lapso 2</th>
+                  <th>Lapso 3</th>
+                </tr>
+              </thead>
+              <tbody>${filas}</tbody>
+            </table>
           </div>
         </div>
       `;

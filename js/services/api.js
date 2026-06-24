@@ -253,12 +253,19 @@ const usuariosAPI = {
 const periodosAPI = {
   /**
    * Listar años escolares
+   * POST /functions/v1/modulo-periodos
    */
   listarAnios: async () => {
-    const { data, error } = await supabase
-      .from('anios_escolares')
-      .select('*')
-      .order('id_anio', { ascending: false });
+    const { data, error } = await supabase.functions.invoke(
+      'modulo-periodos',
+      {
+        method: 'POST',
+        body: {
+          action: 'listar',
+          params: {},
+        },
+      }
+    );
 
     if (error) throw error;
     return data;
@@ -471,124 +478,91 @@ const seccionesAPI = {
 
   /**
    * Asignar docente a materia en sección
-   * POST /functions/v1/modulo-materias
    */
   asignarDocente: async (seccionId, materiaId, docenteId) => {
-    const { data, error } = await supabase.functions.invoke(
-      'modulo-materias',
-      {
-        method: 'POST',
-        body: {
-          action: 'asignar-docente',
-          p_id_seccion: seccionId,
-          p_id_materia: materiaId,
-          p_id_docente: docenteId,
-        },
-      }
-    );
+    const { data, error } = await supabase.rpc('asignar_docente_materia_seccion', {
+      p_id_seccion: seccionId,
+      p_id_materia: materiaId,
+      p_id_docente: docenteId,
+    });
     if (error) throw error;
     return data;
   },
 
   /**
    * Cambiar docente de una materia
-   * POST /functions/v1/modulo-materias
    */
   cambiarDocente: async (seccionId, materiaId, nuevoDocenteId) => {
-    const { data, error } = await supabase.functions.invoke(
-      'modulo-materias',
-      {
-        method: 'POST',
-        body: {
-          action: 'cambiar-docente',
-          p_id_seccion: seccionId,
-          p_id_materia: materiaId,
-          p_id_docente: nuevoDocenteId,
-        },
-      }
-    );
+    const { data, error } = await supabase.rpc('cambiar_docente_materia_seccion', {
+      p_id_seccion: seccionId,
+      p_id_materia: materiaId,
+      p_id_docente: nuevoDocenteId,
+    });
     if (error) throw error;
     return data;
   },
 
   /**
    * Listar materias de una sección
-   * POST /functions/v1/modulo-materias
    */
   listarMaterias: async (seccionId) => {
-    const { data, error } = await supabase.functions.invoke(
-      'modulo-materias',
-      {
-        method: 'POST',
-        body: {
-          action: 'listar-materias-seccion',
-          p_id_seccion: seccionId,
-        },
-      }
-    );
+    const { data, error } = await supabase.rpc('listar_materias_seccion', {
+      p_id_seccion: seccionId,
+    });
+
     if (error) throw error;
-    return data;
+
+    const result = Array.isArray(data) ? data[0] : data;
+    const materias = result?.materias ?? [];
+
+    return (Array.isArray(materias) ? materias : [materias]).map((item) => {
+      const docenteNombre = item.docente_nombre ||
+        (item.docente ? `${item.docente.nombres || ''} ${item.docente.apellidos || ''}`.trim() : '') ||
+        '';
+
+      return {
+        ...item,
+        id_materia: item.id_materia ?? item.materia_id ?? item.id ?? null,
+        nombre: item.nombre || item.nombre_materia || item.nombre_materia || '',
+        nombre_materia: item.nombre_materia || item.nombre || '',
+        docente_nombre: docenteNombre,
+      };
+    });
   },
 
   /**
    * Agregar materia a sección
-   * POST /functions/v1/modulo-materias
    */
   agregarMateria: async (seccionId, materiaId) => {
-    const { data, error } = await supabase.functions.invoke(
-      'modulo-materias',
-      {
-        method: 'POST',
-        body: {
-          action: 'agregar-materia-seccion',
-          p_id_seccion: seccionId,
-          p_id_materia: materiaId,
-        },
-      }
-    );
+    const { data, error } = await supabase.rpc('agregar_materia_seccion', {
+      p_id_seccion: seccionId,
+      p_id_materia: materiaId,
+    });
     if (error) throw error;
     return data;
   },
 
   /**
    * Quitar materia de sección
-   * POST /functions/v1/modulo-materias
    */
   quitarMateria: async (seccionId, materiaId) => {
-    const { data, error } = await supabase.functions.invoke(
-      'modulo-materias',
-      {
-        method: 'POST',
-        body: {
-          action: 'quitar-materia-seccion',
-          p_id_seccion: seccionId,
-          p_id_materia: materiaId,
-        },
-      }
-    );
+    const { data, error } = await supabase.rpc('quitar_materia_seccion', {
+      p_id_seccion: seccionId,
+      p_id_materia: materiaId,
+    });
     if (error) throw error;
     return data;
   },
 
   /**
    * Clonar sección
-   * POST /functions/v1/modulo-secciones
    */
   clonar: async (seccionId, nombreNuevo, letraNuevo) => {
-    const { data, error } = await supabase.functions.invoke(
-      'modulo-secciones',
-      {
-        method: 'POST',
-        body: {
-          action: 'clonar',
-          data: {
-            p_id_seccion_origen: seccionId,
-            p_nombre_nuevo: nombreNuevo,
-            p_letra_nueva: letraNuevo,
-          },
-        },
-      }
-    );
+    const { data, error } = await supabase.rpc('clonar_seccion', {
+      p_id_seccion_origen: seccionId,
+      p_nombre_nuevo: nombreNuevo,
+      p_letra_nueva: letraNuevo,
+    });
     if (error) throw error;
     return data;
   },
@@ -905,6 +879,43 @@ const evaluacionesAPI = {
     return data;
   },
 
+  obtenerPlanillaLlenada: async (evaluacionId, seccionId) => {
+    const { data, error } = await supabase.functions.invoke(
+      'modulo-notas',
+      {
+        method: 'POST',
+        body: {
+          action: 'obtener-planilla-llenada',
+          data: {
+            evaluacion_id: evaluacionId,
+            seccion_id: seccionId,
+          },
+        },
+      }
+    );
+    if (error) throw error;
+    return data;
+  },
+
+  verificarCompletitudNotas: async (seccionId, materiaId, lapsoId) => {
+    const { data, error } = await supabase.functions.invoke(
+      'modulo-notas',
+      {
+        method: 'POST',
+        body: {
+          action: 'verificar-completitud-notas',
+          data: {
+            id_seccion: seccionId,
+            id_materia: materiaId,
+            id_lapso: lapsoId,
+          },
+        },
+      }
+    );
+    if (error) throw error;
+    return data;
+  },
+
   obtenerPorId: async (evaluacionId) => {
     const { data, error } = await supabase
       .from('evaluaciones')
@@ -946,16 +957,76 @@ const evaluacionesAPI = {
   },
 };
 
+const reportesAPI = {
+  generarDatosSabana: async (seccionId) => {
+    const { data, error } = await supabase.functions.invoke(
+      'modulo-reportes',
+      {
+        method: 'POST',
+        body: {
+          action: 'generar-datos-sabana',
+          data: { seccion_id: seccionId },
+        },
+      }
+    );
+    if (error) throw error;
+    return data;
+  },
+
+  generarBoletinEstudiante: async (estudianteId, anioEscolarId) => {
+    const { data, error } = await supabase.functions.invoke(
+      'modulo-reportes',
+      {
+        method: 'POST',
+        body: {
+          action: 'generar-boletin-estudiante',
+          data: {
+            id_estudiante: estudianteId,
+            anio_escolar_id: anioEscolarId,
+          },
+        },
+      }
+    );
+    if (error) throw error;
+    return data;
+  },
+
+  generarActaFinal: async (seccionId, anioId) => {
+    const { data, error } = await supabase.functions.invoke(
+      'modulo-reportes',
+      {
+        method: 'POST',
+        body: {
+          action: 'generar-acta-final',
+          data: {
+            id_seccion: seccionId,
+            id_anio: anioId,
+          },
+        },
+      }
+    );
+    if (error) throw error;
+    return data;
+  },
+};
+
 // ============================================================================
 // EXPORTAR TODOS LOS SERVICIOS
 // ============================================================================
 
-const API = {
-  usuarios: usuariosAPI,
-  periodos: periodosAPI,
-  secciones: seccionesAPI,
-  estudiantes: estudiantesAPI,
-  evaluaciones: evaluacionesAPI,
-};
-
-window.API = API;
+window.API = window.API || {};
+const API = new Proxy(window, {
+  get(target, property) {
+    return target.API[property];
+  },
+  has(target, property) {
+    return property in target.API;
+  },
+});
+// Only attach APIs that are not already provided (preserve injected mocks)
+window.API.usuarios = window.API.usuarios || usuariosAPI;
+window.API.periodos = window.API.periodos || periodosAPI;
+window.API.secciones = window.API.secciones || seccionesAPI;
+window.API.estudiantes = window.API.estudiantes || estudiantesAPI;
+window.API.evaluaciones = window.API.evaluaciones || evaluacionesAPI;
+window.API.reportes = window.API.reportes || reportesAPI;

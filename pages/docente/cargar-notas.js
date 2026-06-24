@@ -586,6 +586,16 @@ async function guardarNotas() {
         return;
       }
 
+      const payloadValidation = validarPayloadNotas(notasAGuardar);
+      if (!payloadValidation.ok) {
+        throw new Error(payloadValidation.error);
+      }
+
+      console.debug("Payload de notas a enviar:", {
+        evaluacion_id: estadoApp.evaluacionActual,
+        notas: notasAGuardar,
+      });
+
       const response = await API.evaluaciones.guardarNotas(
         estadoApp.evaluacionActual,
         notasAGuardar
@@ -603,6 +613,129 @@ async function guardarNotas() {
       mostrarCargando(false);
     }
   }, 'Guardando...');
+}
+
+async function mostrarPlanillaLlenada() {
+  if (!estadoApp.evaluacionActual || !estadoApp.seccionActual) {
+    mostrarError("Selecciona primero sección y evaluación para ver la planilla");
+    return;
+  }
+
+  const resultado = document.getElementById('resultado-planilla');
+  resultado.innerHTML = '<div class="alert alert-info">Cargando planilla llenada...</div>';
+
+  try {
+    const planilla = await API.evaluaciones.obtenerPlanillaLlenada(
+      estadoApp.evaluacionActual,
+      estadoApp.seccionActual
+    );
+
+    if (!Array.isArray(planilla)) {
+      throw new Error('La respuesta no contiene una planilla válida');
+    }
+
+    resultado.innerHTML = renderPlanillaLlenada(planilla);
+  } catch (error) {
+    console.error('Error obteniendo planilla llenada:', error);
+    resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message || 'No se pudo cargar la planilla'}</div>`;
+  }
+}
+
+async function verificarCompletitudNotas() {
+  if (!estadoApp.seccionActual || !estadoApp.materiaActual || !estadoApp.lapsoActual) {
+    mostrarError("Selecciona sección, materia y lapso antes de verificar completitud");
+    return;
+  }
+
+  const resultado = document.getElementById('resultado-planilla');
+  resultado.innerHTML = '<div class="alert alert-info">Verificando completitud de notas...</div>';
+
+  try {
+    const summary = await API.evaluaciones.verificarCompletitudNotas(
+      estadoApp.seccionActual,
+      estadoApp.materiaActual,
+      estadoApp.lapsoActual
+    );
+
+    if (!summary || typeof summary.ok !== 'boolean') {
+      throw new Error('La respuesta de completitud no es válida');
+    }
+
+    resultado.innerHTML = renderCompletitudNotas(summary);
+  } catch (error) {
+    console.error('Error verificando completitud:', error);
+    resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message || 'No se pudo verificar la completitud'}</div>`;
+  }
+}
+
+function renderPlanillaLlenada(planilla) {
+  if (!Array.isArray(planilla) || planilla.length === 0) {
+    return '<div class="alert alert-secondary">No se encontraron registros en la planilla.</div>';
+  }
+
+  const rows = planilla.map((item) => {
+    const estudiante = item.estudiantes || {};
+    const notas = Array.isArray(item.evaluaciones_notas) ? item.evaluaciones_notas[0] : item.evaluaciones_notas || {};
+    return `
+      <tr>
+        <td>${estudiante.cedula || 'N/A'}</td>
+        <td>${estudiante.nombres || ''}</td>
+        <td>${estudiante.apellidos || ''}</td>
+        <td>${notas.nota ?? '-'}</td>
+        <td>${notas.observacion || '-'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div class="card mb-3">
+      <div class="card-header bg-primary text-white">Planilla Llenada</div>
+      <div class="table-responsive">
+        <table class="table table-sm table-striped mb-0">
+          <thead>
+            <tr>
+              <th>Cédula</th>
+              <th>Nombres</th>
+              <th>Apellidos</th>
+              <th>Nota</th>
+              <th>Observación</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderCompletitudNotas(summary) {
+  const faltantes = Array.isArray(summary.detalles_faltantes) ? summary.detalles_faltantes : [];
+  const statusClass = summary.ok ? 'success' : 'warning';
+  const statusLabel = summary.ok ? 'Completo' : 'Incompleto';
+
+  const faltantesHtml = faltantes.length > 0
+    ? `
+      <div class="mt-3">
+        <h6>Detalles de faltantes</h6>
+        <ul class="list-group list-group-flush">
+          ${faltantes.map(item => `<li class="list-group-item">${item.estudiante} — ${item.evaluacion}</li>`).join('')}
+        </ul>
+      </div>
+    `
+    : '<div class="alert alert-success mb-0">No se encontraron notas faltantes.</div>';
+
+  return `
+    <div class="card mb-3">
+      <div class="card-header bg-${statusClass} text-white">Verificación de Completitud: ${statusLabel}</div>
+      <div class="card-body">
+        <p><strong>Total estudiantes:</strong> ${summary.resumen?.total_estudiantes ?? '-'}</p>
+        <p><strong>Total evaluaciones:</strong> ${summary.resumen?.total_evaluaciones ?? '-'}</p>
+        <p><strong>Completitud:</strong> ${summary.resumen?.completitud ?? '-'}</p>
+        <p><strong>Faltantes:</strong> ${summary.resumen?.faltantes_conteo ?? '-'}</p>
+        ${faltantesHtml}
+      </div>
+    </div>
+  `;
 }
 
 // ============================================================================
@@ -722,7 +855,45 @@ function configurarEventListeners() {
  * Valida que una nota sea numérica y esté entre 1 y 20
  */
 function esNotaValida(nota) {
-  return !isNaN(nota) && nota >= 0 && nota <= 20;
+  return !isNaN(nota) && nota >= 1 && nota <= 20;
+}
+
+function validarPayloadNotas(notas) {
+  if (!Array.isArray(notas) || notas.length === 0) {
+    return { ok: false, error: "Payload inválido: no hay notas para guardar" };
+  }
+
+  const estudiantesVistos = new Set();
+
+  for (const item of notas) {
+    if (!item || typeof item !== "object") {
+      return { ok: false, error: "Payload inválido: cada nota debe ser un objeto" };
+    }
+
+    if (!item.evaluacion_id) {
+      return { ok: false, error: "Payload inválido: falta evaluacion_id" };
+    }
+
+    if (!item.estudiante_id) {
+      return { ok: false, error: "Payload inválido: falta estudiante_id" };
+    }
+
+    if (estudiantesVistos.has(item.estudiante_id)) {
+      return { ok: false, error: `Payload inválido: estudiante ${item.estudiante_id} aparece más de una vez` };
+    }
+    estudiantesVistos.add(item.estudiante_id);
+
+    const nota = Number(item.nota);
+    if (!esNotaValida(nota)) {
+      return { ok: false, error: `Nota inválida para el estudiante ${item.estudiante_id}: ${item.nota}` };
+    }
+
+    if (typeof item.asistencia !== "boolean") {
+      return { ok: false, error: `Payload inválido: asistencia debe ser booleano para estudiante ${item.estudiante_id}` };
+    }
+  }
+
+  return { ok: true };
 }
 
 /**

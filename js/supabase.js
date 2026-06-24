@@ -215,7 +215,7 @@ const mapLegacyCall = (functionName, body) => {
       functionName: 'modulo-periodos',
       body: {
         action: 'crear_anio',
-        data: {
+        params: {
           nombre: data.nombre || data.name || '',
           fecha_inicio: data.fecha_inicio || data.fechaInicio || '',
           fecha_fin: data.fecha_fin || data.fechaFin || '',
@@ -230,7 +230,7 @@ const mapLegacyCall = (functionName, body) => {
       functionName: 'modulo-periodos',
       body: {
         action: 'listar_lapsos',
-        data: { id_anio: data.anio_id || data.id_anio || data.anioId || data.id || '' },
+        params: { id_anio: data.anio_id || data.id_anio || data.anioId || data.id || '' },
       },
     };
   }
@@ -241,7 +241,7 @@ const mapLegacyCall = (functionName, body) => {
       functionName: 'modulo-periodos',
       body: {
         action: 'crear_lapso',
-        data: {
+        params: {
           id_anio: data.anio_id || data.id_anio || data.anioId || '',
           nombre: data.nombre || data.name || '',
           fecha_inicio: data.fecha_inicio || data.fechaInicio || '',
@@ -257,7 +257,7 @@ const mapLegacyCall = (functionName, body) => {
       functionName: 'modulo-periodos',
       body: {
         action: 'activar_lapso',
-        data: { id_lapso: data.lapso_id || data.id_lapso || data.id || '' },
+        params: { id_lapso: data.lapso_id || data.id_lapso || data.id || '' },
       },
     };
   }
@@ -268,7 +268,7 @@ const mapLegacyCall = (functionName, body) => {
       functionName: 'modulo-periodos',
       body: {
         action: 'cerrar_lapso',
-        data: { id_lapso: data.lapso_id || data.id_lapso || data.id || '' },
+        params: { id_lapso: data.lapso_id || data.id_lapso || data.id || '' },
       },
     };
   }
@@ -279,13 +279,13 @@ const mapLegacyCall = (functionName, body) => {
       functionName: 'modulo-periodos',
       body: {
         action: 'cerrar_anio',
-        data: { id_anio: data.anio_id || data.id_anio || data.anioId || data.id || '' },
+        params: { id_anio: data.anio_id || data.id_anio || data.anioId || data.id || '' },
       },
     };
   }
 
   if (functionName === 'periodos-get_activo') {
-    return { functionName: 'modulo-periodos', body: { action: 'obtener_activo', data: {} } };
+    return { functionName: 'modulo-periodos', body: { action: 'obtener_activo', params: {} } };
   }
 
   if (functionName === 'secciones-listar') {
